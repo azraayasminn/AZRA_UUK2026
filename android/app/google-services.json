@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "302772132155",
+    "project_id": "inventaris-alat-lab",
+    "storage_bucket": "inventaris-alat-lab.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:302772132155:android:f0dd0732accf2e6faf7f1e",
+        "android_client_info": {
+          "package_name": "com.example.uuk_2026"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "302772132155-v4p17r3nkg8m8qa93dbv8vmvcqc2u1m8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_MvITHsiF_rRsTSKdwo_E5dE9_5XEPgQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "302772132155-v4p17r3nkg8m8qa93dbv8vmvcqc2u1m8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "302772132155-dal4lfqc0qs788psagmm5j7fqmca1ron.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.uuk2026"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
