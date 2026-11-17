@@ -1,34 +1,39 @@
 import 'dart:convert';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 
-// Palet: Alice Blue, Pale Sky, Sky Reflection, Steel Blue, Blue Bell
+// Palet: biru keabuan, krem, peach kusam, cokelat mauve
 class AppColors {
-  static const alice = Color(0xFFE2EFF6);
-  static const pale = Color(0xFFB7D7EA);
-  static const sky = Color(0xFF8DBEDC);
-  static const steel = Color(0xFF64A4CE);
-  static const bell = Color(0xFF4893C6);
-  // turunan supaya teks dan header terbaca
-  static const deep = Color(0xFF2B6A9B);
-  static const text = Color(0xFF1E4160);
-  static const muted = Color(0xFF5F7F99);
-  static const available = Color(0xFF4893C6);
-  static const borrowed = Color(0xFFE08A3C);
-  static const danger = Color(0xFFE5484D);
+  // --- warna dari palet (perkiraan dari gambar) ---
+  static const pale = Color(0xFFD9BFAE); // peach kusam
+  static const alice = Color(0xFFEDE3CC); // krem (background, input)
+  static const ivory = Color(0xFFF8F3E8); // krem terang (ujung background)
+  static const sky = Color(0xFFB8C4D1); // biru keabuan
+
+  // --- turunan supaya teks dan komponen tetap terbaca ---
+  static const deep = Color(0xFF6E5A54); // cokelat tua (awal gradasi header)
+  static const bell = Color(0xFF8A7069); // cokelat mauve (aksen utama)
+  static const steel = Color.fromARGB(255, 96, 87, 84); // mauve muda (ujung gradasi, ikon)
+  static const text = Color(0xFF3A2E2B); // teks utama
+  static const muted = Color.fromARGB(255, 82, 74, 71); // teks sekunder
+  static const available = Color(0xFF4F6F8F); // status tersedia (biru keabuan)
+  static const borrowed = Color(0xFFA3612F); // status dipinjam (oranye hangat)
+  static const danger = Color(0xFFD64545); // hapus / logout
 }
 
 const headerGradient = LinearGradient(
-  colors: [AppColors.deep, AppColors.bell, AppColors.steel],
+  colors: [Color(0xFF5E4A44), Color(0xFF7A625B), AppColors.bell],
   stops: [0.0, 0.6, 1.0],
   begin: Alignment.topLeft,
   end: Alignment.bottomRight,
 );
 
-// Background halaman: gradasi lembut dari atas ke bawah
+// Background halaman: gradasi lembut peach -> krem -> krem terang
 const bgGradient = LinearGradient(
-  colors: [AppColors.pale, AppColors.alice, Color(0xFFF6FAFD)],
-  begin: Alignment.topCenter,
-  end: Alignment.bottomCenter,
+  colors: [AppColors.sky, AppColors.alice, AppColors.pale],
+  stops: [0.0, 0.52, 1.0],
+  begin: Alignment(-0.35, -1),
+  end: Alignment(0.35, 1),
 );
 
 const kCategories = ['Gelas Ukur', 'Mikroskop', 'Elektronik', 'Kimia', 'Lainnya'];
@@ -95,13 +100,92 @@ class AppBackground extends StatelessWidget {
   final Widget child;
   const AppBackground({super.key, required this.child});
 
+  Widget _blob(double size, Color c, double o) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+              colors: [c.withOpacity(o), c.withOpacity(0)]),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(gradient: bgGradient),
-        child: child,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned(top: -110, right: -120, child: _blob(360, AppColors.pale, .9)),
+            Positioned(bottom: -130, left: -110, child: _blob(380, AppColors.bell, .35)),
+            child,
+          ],
+        ),
       );
+}
+
+/// Dekorasi kaca ringan (tanpa blur), cocok untuk item yang jumlahnya banyak.
+BoxDecoration glassDecoration({double radius = 24, double opacity = .5}) =>
+    BoxDecoration(
+      color: Colors.white.withOpacity(opacity),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(color: Colors.white.withOpacity(.75)),
+      boxShadow: [
+        BoxShadow(
+          color: AppColors.deep.withOpacity(.12),
+          blurRadius: 24,
+          offset: const Offset(0, 10),
+        ),
+      ],
+    );
+
+/// Kartu kaca dengan blur (glassmorphism).
+class GlassCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double radius;
+  final double opacity;
+  const GlassCard({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.all(20),
+    this.radius = 24,
+    this.opacity = .5,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final r = BorderRadius.circular(radius);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: r,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deep.withOpacity(.12),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: r,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            padding: padding,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(opacity),
+              borderRadius: r,
+              border: Border.all(color: Colors.white.withOpacity(.75)),
+            ),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 PreferredSizeWidget gradientAppBar(String title,
@@ -267,4 +351,3 @@ class AuthShell extends StatelessWidget {
     );
   }
 }
-

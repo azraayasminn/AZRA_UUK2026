@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../models/item_model.dart';
 import '../services/firestore_service.dart';
@@ -16,7 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _search = TextEditingController();
   String _q = '';
 
-  // stream dibuat SEKALI supaya tidak berkedip saat mengetik di kolom cari
+  // stream dibuat sekali supaya tidak berkedip saat mengetik di kolom cari
   late final Stream<List<Item>> _itemsStream = FirestoreService.streamItems();
   late final Stream<Map<String, dynamic>> _userStream =
       FirestoreService.streamUser();
@@ -29,146 +30,237 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: StreamBuilder<List<Item>>(
-        stream: _itemsStream,
-        builder: (context, snap) {
-          if (snap.hasError) {
-            return Center(child: Text('Error: ${snap.error}'));
-          }
-          final items = snap.data ?? [];
-          final q = _q.toLowerCase();
-          final results = items
-              .where((e) =>
-                  e.name.toLowerCase().contains(q) ||
-                  e.code.toLowerCase().contains(q) ||
-                  e.category.toLowerCase().contains(q))
-              .toList();
-          final cats = items.map((e) => e.category).toSet().toList();
-          final avail = items.where((e) => e.available).length;
-          final borrowed = items.length - avail;
+    return AppBackground(
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: StreamBuilder<List<Item>>(
+          stream: _itemsStream,
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return Center(child: Text('Error: ${snap.error}'));
+            }
+            final items = snap.data ?? [];
+            final q = _q.toLowerCase();
+            final results = items
+                .where((e) =>
+                    e.name.toLowerCase().contains(q) ||
+                    e.code.toLowerCase().contains(q) ||
+                    e.category.toLowerCase().contains(q))
+                .toList();
+            final cats = items.map((e) => e.category).toSet().toList();
+            final avail = items.where((e) => e.available).length;
+            final borrowed = items.length - avail;
 
-          return CustomScrollView(
-            slivers: [
-              // Header yang menyusut: "Halo, nama" hilang saat di-scroll,
-              // kolom pencarian tetap menempel di atas.
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _HomeHeaderDelegate(
-                  topPad: MediaQuery.of(context).padding.top,
-                  greeting: _greeting(),
-                  searchField: _searchField(),
+            return CustomScrollView(
+              slivers: [
+                // Header yang menyusut: "Halo, nama" hilang saat di-scroll,
+                // kolom pencarian tetap menempel di atas.
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _HomeHeaderDelegate(
+                    topPad: MediaQuery.of(context).padding.top,
+                    greeting: _greeting(),
+                    searchField: _searchField(),
+                  ),
                 ),
-              ),
-              SliverList(
-                delegate: SliverChildListDelegate([
-                  if (!snap.hasData)
-                    const Padding(
-                        padding: EdgeInsets.all(40),
-                        child: Center(child: CircularProgressIndicator()))
-                  else if (_q.isNotEmpty) ...[
-                    _title('Hasil pencarian (${results.length})'),
-                    if (results.isEmpty)
+                SliverList(
+                  delegate: SliverChildListDelegate([
+                    if (!snap.hasData)
                       const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Center(child: Text('Alat tidak ditemukan')))
-                    else
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        child: Column(
-                          children: results
-                              .map((e) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 10),
-                                  child: ItemTile(item: e)))
-                              .toList(),
+                          padding: EdgeInsets.all(40),
+                          child: Center(child: CircularProgressIndicator()))
+                    else if (_q.isNotEmpty) ...[
+                      _title('Hasil pencarian (${results.length})'),
+                      if (results.isEmpty)
+                        const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: Center(child: Text('Alat tidak ditemukan')))
+                      else
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Column(
+                            children: results
+                                .map((e) => Padding(
+                                    padding: const EdgeInsets.only(bottom: 10),
+                                    child: ItemTile(item: e)))
+                                .toList(),
+                          ),
                         ),
-                      ),
-                    const SizedBox(height: 24),
-                  ] else ...[
-                    const _BannerCarousel(),
-                    _title('Semua Data'),
-                    if (items.isEmpty)
-                      const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 24),
-                          child: Center(child: Text('Belum ada data alat')))
-                    else
+                      const SizedBox(height: 24),
+                    ] else ...[
+                      // CARD KETERSEDIAAN (baru)
+                      _availabilityCard(items.length, avail, borrowed),
+                      const _BannerCarousel(),
+                      _title('Kategori Peralatan'),
                       SizedBox(
-                        height: 160,
+                        height: 44,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                          itemCount: items.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 12),
-                          itemBuilder: (_, i) => _itemCard(context, items[i]),
+                          itemCount: cats.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 10),
+                          itemBuilder: (_, i) => ActionChip(
+                            onPressed: () => setState(() {
+                              _search.text = cats[i];
+                              _q = cats[i];
+                            }),
+                            backgroundColor: Colors.white.withOpacity(.55),
+                            side: BorderSide(
+                                color: Colors.white.withOpacity(.75)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(22)),
+                            avatar: Icon(categoryIcon(cats[i]),
+                                size: 16, color: AppColors.bell),
+                            label: Text(cats[i],
+                                style: const TextStyle(
+                                    color: AppColors.text, fontSize: 12)),
+                          ),
                         ),
                       ),
-                    _title('Kategori Peralatan'),
-                    SizedBox(
-                      height: 44,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: cats.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 10),
-                        itemBuilder: (_, i) => ActionChip(
-                          onPressed: () => setState(() {
-                            _search.text = cats[i];
-                            _q = cats[i];
-                          }),
-                          backgroundColor: Colors.white,
-                          side: BorderSide.none,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(22)),
-                          avatar: Icon(categoryIcon(cats[i]),
-                              size: 16, color: AppColors.bell),
-                          label: Text(cats[i],
-                              style: const TextStyle(
-                                  color: AppColors.text, fontSize: 12)),
+                      _title('Semua Data'),
+                      if (items.isEmpty)
+                        const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Center(child: Text('Belum ada data alat')))
+                      else
+                        SizedBox(
+                          height: 160,
+                          child: ListView.separated(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: items.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(width: 12),
+                            itemBuilder: (_, i) => _itemCard(context, items[i]),
+                          ),
                         ),
-                      ),
-                    ),
-                    _title('Status'),
-                    SizedBox(
-                      height: 70,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        children: [
-                          _statusCard('Available', avail, AppColors.bell,
-                              Icons.check_circle_outline),
-                          const SizedBox(width: 12),
-                          _statusCard('Borrowed', borrowed, AppColors.borrowed,
-                              Icons.schedule),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-                ]),
-              ),
-            ],
-          );
-        },
+                      const SizedBox(height: 24),
+                    ],
+                  ]),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 
-  // ---------- bagian header ----------
-  Widget _greeting() => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Halo,',
-              style: TextStyle(color: AppColors.alice, fontSize: 12)),
-          StreamBuilder<Map<String, dynamic>>(
-            stream: _userStream,
-            builder: (_, s) => Text((s.data?['name'] as String?) ?? '...',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+  // ---------- card ketersediaan ----------
+  Widget _availabilityCard(int total, int avail, int borrowed) {
+    final ratio = total == 0 ? 0.0 : avail / total;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF5A4742), Color(0xFF7A625B)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.deep.withOpacity(.35),
+              blurRadius: 30,
+              offset: const Offset(0, 14),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('Ketersediaan alat',
+                      style: TextStyle(
+                          color: Colors.white, fontSize: 13)),
+                ),
+                Icon(Icons.inventory_2_outlined,
+                    color: Colors.white.withOpacity(.9), size: 20),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('$total',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 44,
+                        height: 1.1,
+                        fontWeight: FontWeight.w800)),
+                const SizedBox(width: 8),
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: Text('alat',
+                      style: TextStyle(color: Colors.white, fontSize: 14)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: ratio,
+                minHeight: 8,
+                backgroundColor: Colors.white.withOpacity(.25),
+                valueColor: const AlwaysStoppedAnimation(Colors.white),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                _heroStat('Tersedia', avail),
+                _heroStat('Dipinjam', borrowed),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _heroStat(String label, int n) => Expanded(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$n',
                 style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700)),
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800)),
+            Text(label,
+                style: TextStyle(
+                    color: Colors.white.withOpacity(.92), fontSize: 12)),
+          ],
+        ),
+      );
+
+  // ---------- bagian header ----------
+  Widget _greeting() => Row(
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Halo,',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                StreamBuilder<Map<String, dynamic>>(
+                  stream: _userStream,
+                  builder: (_, s) => Text((s.data?['name'] as String?) ?? '...',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: AppColors.text,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ),
           ),
         ],
       );
@@ -176,10 +268,11 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _searchField() => TextField(
         controller: _search,
         onChanged: (v) => setState(() => _q = v.trim()),
+        style: const TextStyle(color: AppColors.text, fontSize: 14),
         textAlignVertical: TextAlignVertical.center,
         decoration: InputDecoration(
           hintText: 'Cari alat inventaris...',
-          hintStyle: const TextStyle(fontSize: 13, color: AppColors.steel),
+          hintStyle: const TextStyle(fontSize: 13, color: AppColors.muted),
           prefixIcon: const Icon(Icons.search, size: 20, color: AppColors.bell),
           suffixIcon: _q.isEmpty
               ? null
@@ -190,11 +283,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         _q = '';
                       })),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: Colors.white.withOpacity(.75),
           contentPadding: const EdgeInsets.symmetric(vertical: 0),
           border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(24),
               borderSide: BorderSide.none),
+          enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide.none),
+          focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(24),
+              borderSide: const BorderSide(color: AppColors.bell, width: 1.2)),
         ),
       );
 
@@ -202,8 +301,8 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
         child: Text(t,
             style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
                 color: AppColors.text)),
       );
 
@@ -222,14 +321,13 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: () => showItemSheet(context, e), // di sini ada tombol Pinjam
         child: Container(
           width: 120,
-          decoration: BoxDecoration(
-              color: Colors.white, borderRadius: BorderRadius.circular(16)),
+          decoration: glassDecoration(radius: 20, opacity: .55),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
                 borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(16)),
+                    const BorderRadius.vertical(top: Radius.circular(20)),
                 child: Stack(children: [
                   NetImage(e.image, width: 120, height: 100),
                   Positioned(left: 6, top: 6, child: _miniBadge(e.available)),
@@ -242,49 +340,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                         fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                         color: AppColors.text)),
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Text(e.category,
                     style: const TextStyle(
-                        fontSize: 10, color: AppColors.steel)),
+                        fontSize: 10, color: AppColors.muted)),
               ),
             ],
           ),
         ),
       );
-
-  Widget _statusCard(String label, int n, Color c, IconData icon) => Container(
-        width: 150,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-            color: c, borderRadius: BorderRadius.circular(16)),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white),
-            const SizedBox(width: 10),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600)),
-                Text('$n alat',
-                    style:
-                        const TextStyle(color: Colors.white, fontSize: 11)),
-              ],
-            ),
-          ],
-        ),
-      );
 }
 
-/// Header gradasi yang menyusut saat di-scroll:
+/// Header kaca (frosted) yang menyusut saat di-scroll:
 /// - "Halo, nama" memudar lalu hilang
 /// - kolom pencarian tetap menempel di atas
 class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
@@ -313,41 +384,54 @@ class _HomeHeaderDelegate extends SliverPersistentHeaderDelegate {
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     final range = maxExtent - minExtent;
     final t = (shrinkOffset / range).clamp(0.0, 1.0);
+    const radius = BorderRadius.vertical(bottom: Radius.circular(28));
 
     return Container(
-      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        gradient: headerGradient,
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+        borderRadius: radius,
         // bayangan muncul perlahan saat header menempel
         boxShadow: [
           BoxShadow(
-            color: AppColors.deep.withOpacity(0.22 * t),
-            blurRadius: 12,
+            color: AppColors.deep.withOpacity(0.16 * t),
+            blurRadius: 14,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Stack(children: [
-        // sapaan: naik sedikit sambil memudar
-        Positioned(
-          left: 20,
-          right: 20,
-          top: topPad + 16 - 20 * t,
-          child: Opacity(
-            opacity: (1 - t * 1.8).clamp(0.0, 1.0),
-            child: SizedBox(height: _greetH, child: greeting),
+      child: ClipRRect(
+        borderRadius: radius,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.45),
+              borderRadius: radius,
+              border: Border(
+                  bottom: BorderSide(color: Colors.white.withOpacity(.75))),
+            ),
+            child: Stack(children: [
+              // sapaan: naik sedikit sambil memudar
+              Positioned(
+                left: 20,
+                right: 20,
+                top: topPad + 16 - 20 * t,
+                child: Opacity(
+                  opacity: (1 - t * 1.8).clamp(0.0, 1.0),
+                  child: SizedBox(height: _greetH, child: greeting),
+                ),
+              ),
+              // kolom pencarian: selalu terlihat
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 18 - 6 * t,
+                height: _searchH,
+                child: searchField,
+              ),
+            ]),
           ),
         ),
-        // kolom pencarian: selalu terlihat
-        Positioned(
-          left: 20,
-          right: 20,
-          bottom: 18 - 6 * t,
-          height: _searchH,
-          child: searchField,
-        ),
-      ]),
+      ),
     );
   }
 
@@ -366,13 +450,10 @@ class ItemTile extends StatelessWidget {
       onTap: () => showItemSheet(context, item),
       child: Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
+        decoration: glassDecoration(radius: 20, opacity: .55),
         child: Row(
           children: [
-            NetImage(item.image, width: 62, height: 62, radius: 12),
+            NetImage(item.image, width: 62, height: 62, radius: 14),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -392,7 +473,7 @@ class ItemTile extends StatelessWidget {
                   Row(
                     children: [
                       const Icon(Icons.category_outlined,
-                          size: 14, color: AppColors.steel),
+                          size: 14, color: AppColors.muted),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
@@ -400,7 +481,7 @@ class ItemTile extends StatelessWidget {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
-                              fontSize: 11, color: AppColors.steel),
+                              fontSize: 11, color: AppColors.muted),
                         ),
                       ),
                     ],
@@ -411,15 +492,15 @@ class ItemTile extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11,
                       color: item.available
-                          ? AppColors.bell
+                          ? AppColors.available
                           : AppColors.borrowed,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right_rounded, color: AppColors.steel),
+            const Icon(Icons.chevron_right_rounded, color: AppColors.muted),
           ],
         ),
       ),
@@ -479,15 +560,22 @@ class _BannerCarouselState extends State<_BannerCarousel> {
               return Container(
                 margin: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(24),
                   gradient: headerGradient,
                   image: DecorationImage(
                     image: NetworkImage(b[2]),
                     fit: BoxFit.cover,
                     colorFilter: ColorFilter.mode(
-                        AppColors.bell.withOpacity(.6), BlendMode.srcOver),
+                        AppColors.deep.withOpacity(.55), BlendMode.srcOver),
                     onError: (_, __) {},
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.deep.withOpacity(.18),
+                      blurRadius: 18,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
                 ),
                 padding: const EdgeInsets.all(16),
                 alignment: Alignment.bottomLeft,
@@ -520,7 +608,7 @@ class _BannerCarouselState extends State<_BannerCarousel> {
               width: i == _page ? 18 : 6,
               height: 6,
               decoration: BoxDecoration(
-                  color: i == _page ? AppColors.bell : AppColors.pale,
+                  color: i == _page ? AppColors.bell : Colors.white.withOpacity(.8),
                   borderRadius: BorderRadius.circular(3)),
             ),
           ),
